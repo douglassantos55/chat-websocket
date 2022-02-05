@@ -21,7 +21,7 @@ func ConnectToServer(addr string) *websocket.Conn {
 }
 
 func TestAcceptsConnections(t *testing.T) {
-    go server.Listen("0.0.0.0:8080")
+	go server.Listen("0.0.0.0:8080")
 
 	// wait a bit, don't know how to do this right
 	time.Sleep(200 * time.Millisecond)
@@ -29,12 +29,12 @@ func TestAcceptsConnections(t *testing.T) {
 	c1 := ConnectToServer("0.0.0.0:8080")
 	c2 := ConnectToServer("0.0.0.0:8080")
 
+	defer c1.Close()
+	defer c2.Close()
+
 	if len(server.Sockets) != 2 {
 		t.Errorf("Expected 2 connection, got %d", len(server.Sockets))
 	}
-
-	defer c1.Close()
-	defer c2.Close()
 }
 
 func TestClosesConnections(t *testing.T) {
@@ -42,6 +42,7 @@ func TestClosesConnections(t *testing.T) {
 	c2 := ConnectToServer("0.0.0.0:8080")
 
 	c1.Close()
+	defer c2.Close()
 
 	// wait a bit, don't know how to do this right
 	time.Sleep(200 * time.Millisecond)
@@ -49,6 +50,36 @@ func TestClosesConnections(t *testing.T) {
 	if len(server.Sockets) != 1 {
 		t.Errorf("Expected 1 connection, got %d", len(server.Sockets))
 	}
+}
 
+func TestBroadcastMessages(t *testing.T) {
+	c1 := ConnectToServer("0.0.0.0:8080")
+	c2 := ConnectToServer("0.0.0.0:8080")
+
+	defer c1.Close()
 	defer c2.Close()
+
+	c1.WriteMessage(websocket.TextMessage, []byte("hello"))
+
+	select {
+	case msg := <-server.Sockets[5].Outgoing:
+		if msg != "hello" {
+			t.Errorf("Expected outgoing message hello, got %s", msg)
+		}
+	case <-time.After(time.Second):
+		t.Error("Did not get message from server")
+	}
+
+	select {
+	case msg := <-server.Sockets[5].Incoming:
+		if msg != "" {
+			t.Error("Didn't expect sender to receive its own message")
+		}
+	case msg := <-server.Sockets[6].Incoming:
+		if msg != "hello" {
+			t.Errorf("Expected hello, got %s", msg)
+		}
+	case <-time.After(time.Second):
+		t.Error("Did not receive message from server")
+	}
 }
