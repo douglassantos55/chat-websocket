@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"log"
 	"net/http"
 
@@ -11,6 +12,11 @@ type Server struct {
 	currentId uint
 
 	Sockets map[uint]*Socket
+}
+
+type PrivateMessage struct {
+	Message  string `json:"message"`
+	Receiver uint   `json:"receiver"`
 }
 
 func NewServer() *Server {
@@ -57,17 +63,30 @@ func (s *Server) HandleConnection(w http.ResponseWriter, r *http.Request) {
 				break
 			}
 
-			if msg != nil {
-				go s.Broadcast(msg, c)
+			var data PrivateMessage
+			jsonError := json.Unmarshal(msg, &data)
+
+			if jsonError != nil {
+				go s.broadcast(msg, c)
+			} else {
+				go s.private(data)
 			}
 		}
 	}()
 }
 
-func (s *Server) Broadcast(msg []byte, sender *websocket.Conn) {
+func (s *Server) broadcast(msg []byte, sender *websocket.Conn) {
 	for _, socket := range s.Sockets {
 		if socket.Conn != sender {
 			socket.Conn.WriteMessage(websocket.TextMessage, msg)
 		}
+	}
+}
+
+func (s *Server) private(data PrivateMessage) {
+	receiver, exists := s.Sockets[data.Receiver]
+
+	if exists {
+		receiver.Conn.WriteMessage(websocket.TextMessage, []byte(data.Message))
 	}
 }
