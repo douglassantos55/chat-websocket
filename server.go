@@ -3,20 +3,21 @@ package main
 import (
 	"log"
 	"net/http"
-	"time"
 
 	"github.com/gorilla/websocket"
 )
 
 type Server struct {
 	currentId uint
-	Sockets   map[uint]*Socket
+
+	Sockets map[uint]*Socket
 }
 
 func NewServer() *Server {
 	return &Server{
 		currentId: 1,
-		Sockets:   make(map[uint]*Socket),
+
+		Sockets: make(map[uint]*Socket),
 	}
 }
 
@@ -48,17 +49,6 @@ func (s *Server) HandleConnection(w http.ResponseWriter, r *http.Request) {
 		s.Sockets[id] = socket
 		s.currentId += 1
 
-		go func() {
-			for {
-				select {
-				case msg := <-socket.Outgoing:
-					c.WriteMessage(websocket.TextMessage, []byte(msg))
-				default:
-					time.Sleep(100 * time.Millisecond)
-				}
-			}
-		}()
-
 		for {
 			_, msg, err := c.ReadMessage()
 
@@ -67,11 +57,17 @@ func (s *Server) HandleConnection(w http.ResponseWriter, r *http.Request) {
 				break
 			}
 
-			for _, conn := range s.Sockets {
-				if conn != socket {
-					conn.Outgoing <- string(msg)
-				}
+			if msg != nil {
+				go s.Broadcast(msg, c)
 			}
 		}
 	}()
+}
+
+func (s *Server) Broadcast(msg []byte, sender *websocket.Conn) {
+	for _, socket := range s.Sockets {
+		if socket.Conn != sender {
+			socket.Conn.WriteMessage(websocket.TextMessage, msg)
+		}
+	}
 }

@@ -61,12 +61,21 @@ func TestBroadcastMessages(t *testing.T) {
 
 	c1.WriteMessage(websocket.TextMessage, []byte("hello"))
 
-	select {
-	case msg := <-server.Sockets[6].Outgoing:
-		if msg != "hello" {
-			t.Errorf("Expected outgoing message hello, got %s", msg)
-		}
-	case <-time.After(time.Second):
-		t.Error("Did not receive message from server")
+	c1.SetReadDeadline(time.Now().Add(time.Second))
+	_, msg, err := c1.ReadMessage()
+
+	if err == nil {
+		t.Errorf("Expected timeout, got message: \"%s\"", string(msg))
+	}
+
+	c2.SetReadDeadline(time.Now().Add(time.Second))
+	_, broadcast, err2 := c2.ReadMessage()
+
+	if err2 != nil {
+		t.Errorf("Expected message, got error: \"%s\"", err)
+	}
+
+	if string(broadcast) != "hello" {
+		t.Errorf("Expected hello, got %s", string(broadcast))
 	}
 }
