@@ -67,11 +67,9 @@ func (s *Server) HandleConnection(w http.ResponseWriter, r *http.Request) {
 				break
 			}
 
-			socket.Outgoing <- string(msg)
-
 			for _, conn := range s.Sockets {
 				if conn != socket {
-					conn.Incoming <- string(msg)
+					conn.Outgoing <- string(msg)
 				}
 			}
 		}

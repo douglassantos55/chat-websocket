@@ -62,22 +62,9 @@ func TestBroadcastMessages(t *testing.T) {
 	c1.WriteMessage(websocket.TextMessage, []byte("hello"))
 
 	select {
-	case msg := <-server.Sockets[5].Outgoing:
+	case msg := <-server.Sockets[6].Outgoing:
 		if msg != "hello" {
 			t.Errorf("Expected outgoing message hello, got %s", msg)
-		}
-	case <-time.After(time.Second):
-		t.Error("Did not get message from server")
-	}
-
-	select {
-	case msg := <-server.Sockets[5].Incoming:
-		if msg != "" {
-			t.Error("Didn't expect sender to receive its own message")
-		}
-	case msg := <-server.Sockets[6].Incoming:
-		if msg != "hello" {
-			t.Errorf("Expected hello, got %s", msg)
 		}
 	case <-time.After(time.Second):
 		t.Error("Did not receive message from server")
