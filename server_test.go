@@ -92,17 +92,24 @@ func TestPrivateMessage(t *testing.T) {
 	c1.WriteJSON(PrivateMessage{
 		Message:  "hello, number 8",
 		Receiver: 8,
+        Sender: 7,
 	})
 
 	c2.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
-    _, msg, err := c2.ReadMessage()
+
+    var data PrivateMessage
+    err := c2.ReadJSON(&data)
 
     if err != nil {
         t.Errorf("Expected message, got error: \"%s\"", err)
     }
 
-    if string(msg) != "hello, number 8" {
-        t.Errorf("Expected hello, number 8, got %s", string(msg))
+    if data.Message != "hello, number 8" {
+        t.Errorf("Expected hello, number 8, got %s", data.Message)
+    }
+
+    if data.Sender != 7 {
+        t.Errorf("Expected sender 7, got %d", data.Sender)
     }
 
 	c3.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
@@ -123,6 +130,7 @@ func TestPrivateMessageToInvalid(t *testing.T) {
 	c1.WriteJSON(PrivateMessage{
 		Message:  "hello, number 8",
 		Receiver: 999,
+        Sender: 10,
 	})
 
 	c2.SetReadDeadline(time.Now().Add(500 * time.Millisecond))

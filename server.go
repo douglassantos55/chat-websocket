@@ -17,6 +17,7 @@ type Server struct {
 type PrivateMessage struct {
 	Message  string `json:"message"`
 	Receiver uint   `json:"receiver"`
+	Sender   uint   `json:"sender"`
 }
 
 func NewServer() *Server {
@@ -69,7 +70,7 @@ func (s *Server) HandleConnection(w http.ResponseWriter, r *http.Request) {
 			if jsonError != nil {
 				go s.broadcast(msg, c)
 			} else {
-				go s.private(data)
+				go s.private(data, id)
 			}
 		}
 	}()
@@ -83,10 +84,11 @@ func (s *Server) broadcast(msg []byte, sender *websocket.Conn) {
 	}
 }
 
-func (s *Server) private(data PrivateMessage) {
+func (s *Server) private(data PrivateMessage, senderId uint) {
 	receiver, exists := s.Sockets[data.Receiver]
 
 	if exists {
-		receiver.Conn.WriteMessage(websocket.TextMessage, []byte(data.Message))
+		data.Sender = senderId
+		receiver.Conn.WriteJSON(data)
 	}
 }
