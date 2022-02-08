@@ -59,24 +59,30 @@ func TestBroadcastMessages(t *testing.T) {
 	defer c1.Close()
 	defer c2.Close()
 
-	c1.WriteMessage(websocket.TextMessage, []byte("hello"))
+	c1.WriteJSON(Message{
+		Message: "hello",
+		Channel: 1,
+		Sender:  5,
+	})
 
 	c1.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
-	_, msg, err := c1.ReadMessage()
+
+	var msg Message
+	err := c1.ReadJSON(&msg)
 
 	if err == nil {
-		t.Errorf("Expected timeout, got message: \"%s\"", string(msg))
+		t.Errorf("Expected timeout, got message: \"%s\"", msg.Message)
 	}
 
 	c2.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
-	_, broadcast, err2 := c2.ReadMessage()
+	err2 := c2.ReadJSON(&msg)
 
 	if err2 != nil {
-		t.Errorf("Expected message, got error: \"%s\"", err)
+		t.Errorf("Expected message, got error: \"%s\"", err2)
 	}
 
-	if string(broadcast) != "hello" {
-		t.Errorf("Expected hello, got %s", string(broadcast))
+	if msg.Message != "hello" {
+		t.Errorf("Expected hello, got %s", msg.Message)
 	}
 }
 
@@ -91,33 +97,33 @@ func TestPrivateMessage(t *testing.T) {
 
 	c1.WriteJSON(PrivateMessage{
 		Message:  "hello, number 8",
+		Sender:   7,
 		Receiver: 8,
-        Sender: 7,
 	})
 
 	c2.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
 
-    var data PrivateMessage
-    err := c2.ReadJSON(&data)
+	var data PrivateMessage
+	err := c2.ReadJSON(&data)
 
-    if err != nil {
-        t.Errorf("Expected message, got error: \"%s\"", err)
-    }
+	if err != nil {
+		t.Errorf("Expected message, got error: \"%s\"", err)
+	}
 
-    if data.Message != "hello, number 8" {
-        t.Errorf("Expected hello, number 8, got %s", data.Message)
-    }
+	if data.Message != "hello, number 8" {
+		t.Errorf("Expected hello, number 8, got %s", data.Message)
+	}
 
-    if data.Sender != 7 {
-        t.Errorf("Expected sender 7, got %d", data.Sender)
-    }
+	if data.Sender != 7 {
+		t.Errorf("Expected sender 7, got %d", data.Sender)
+	}
 
 	c3.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
-    _, message, err := c3.ReadMessage()
+	_, message, err := c3.ReadMessage()
 
-    if err == nil {
-        t.Errorf("Expected timeout, got %s", string(message))
-    }
+	if err == nil {
+		t.Errorf("Expected timeout, got %s", string(message))
+	}
 }
 
 func TestPrivateMessageToInvalid(t *testing.T) {
@@ -129,14 +135,41 @@ func TestPrivateMessageToInvalid(t *testing.T) {
 
 	c1.WriteJSON(PrivateMessage{
 		Message:  "hello, number 8",
+		Sender:   10,
 		Receiver: 999,
-        Sender: 10,
 	})
 
 	c2.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
-    _, msg, err := c2.ReadMessage()
 
-    if err == nil {
-        t.Errorf("Expected timeout, got %s", string(msg))
-    }
+    var msg PrivateMessage
+	err := c2.ReadJSON(&msg)
+
+	if err == nil {
+		t.Errorf("Expected timeout, got %s", msg.Message)
+	}
+}
+
+func TestRemoveSocketFromChannels(t *testing.T) {
+	c1 := ConnectToServer("0.0.0.0:8080")
+	c2 := ConnectToServer("0.0.0.0:8080")
+
+	c2.Close()
+	defer c1.Close()
+
+	c1.WriteJSON(Message{
+		Message: "hello",
+		Channel: 1,
+		Sender:  12,
+	})
+
+	c2.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
+
+	var msg Message
+	err := c2.ReadJSON(&msg)
+
+	// error is probably coming from reading c2, not server
+	// this test sucks
+	if err == nil {
+		t.Errorf("Expected error, got %s", msg.Message)
+	}
 }

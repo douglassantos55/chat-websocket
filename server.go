@@ -8,23 +8,29 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-type Server struct {
-	currentId uint
-
+type Channel struct {
+	Id      uint
+	Name    string
 	Sockets map[uint]*Socket
 }
 
-type PrivateMessage struct {
-	Message  string `json:"message"`
-	Receiver uint   `json:"receiver"`
-	Sender   uint   `json:"sender"`
+type Server struct {
+	currentId uint
+	Channels  map[uint]*Channel
+	Sockets   map[uint]*Socket
 }
 
 func NewServer() *Server {
+	defaultChannel := &Channel{
+		Id:      1,
+		Name:    "Broadcast",
+		Sockets: make(map[uint]*Socket),
+	}
+
 	return &Server{
 		currentId: 1,
-
-		Sockets: make(map[uint]*Socket),
+		Sockets:   make(map[uint]*Socket),
+		Channels:  map[uint]*Channel{1: defaultChannel},
 	}
 }
 
@@ -56,6 +62,9 @@ func (s *Server) HandleConnection(w http.ResponseWriter, r *http.Request) {
 		s.Sockets[id] = socket
 		s.currentId += 1
 
+		// add client to the default channel
+		s.Channels[1].Sockets[id] = socket
+
 		for {
 			_, msg, err := c.ReadMessage()
 
@@ -64,22 +73,42 @@ func (s *Server) HandleConnection(w http.ResponseWriter, r *http.Request) {
 				break
 			}
 
-			var data PrivateMessage
-			jsonError := json.Unmarshal(msg, &data)
+            if msg == nil {
+                continue;
+            }
 
-			if jsonError != nil {
-				go s.broadcast(msg, c)
-			} else {
-				go s.private(data, id)
-			}
+			go func() {
+				var message Message
+				err := json.Unmarshal(msg, &message)
+
+				if err == nil {
+					go s.broadcast(message, c)
+				}
+			}()
+
+			go func() {
+				var message PrivateMessage
+				err := json.Unmarshal(msg, &message)
+
+				if err == nil {
+					go s.private(message, id)
+				}
+			}()
 		}
 	}()
 }
 
-func (s *Server) broadcast(msg []byte, sender *websocket.Conn) {
-	for _, socket := range s.Sockets {
+func (s *Server) broadcast(message Message, sender *websocket.Conn) {
+	channel := s.Channels[message.Channel]
+
+	if channel == nil {
+		log.Printf("Channel %d not found", message.Channel)
+		return
+	}
+
+	for _, socket := range channel.Sockets {
 		if socket.Conn != sender {
-			socket.Conn.WriteMessage(websocket.TextMessage, msg)
+			socket.Conn.WriteJSON(message)
 		}
 	}
 }
