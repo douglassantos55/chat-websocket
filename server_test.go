@@ -65,7 +65,7 @@ func TestBroadcastMessages(t *testing.T) {
 		Sender:  5,
 	})
 
-	c1.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
+	c1.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
 
 	var msg Message
 	err := c1.ReadJSON(&msg)
@@ -74,7 +74,7 @@ func TestBroadcastMessages(t *testing.T) {
 		t.Errorf("Expected timeout, got message: \"%s\"", msg.Message)
 	}
 
-	c2.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
+	c2.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
 	err2 := c2.ReadJSON(&msg)
 
 	if err2 != nil {
@@ -101,7 +101,7 @@ func TestPrivateMessage(t *testing.T) {
 		Receiver: 8,
 	})
 
-	c2.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
+	c2.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
 
 	var data PrivateMessage
 	err := c2.ReadJSON(&data)
@@ -118,7 +118,7 @@ func TestPrivateMessage(t *testing.T) {
 		t.Errorf("Expected sender 7, got %d", data.Sender)
 	}
 
-	c3.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
+	c3.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
 	_, message, err := c3.ReadMessage()
 
 	if err == nil {
@@ -139,7 +139,7 @@ func TestPrivateMessageToInvalid(t *testing.T) {
 		Receiver: 999,
 	})
 
-	c2.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
+	c2.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
 
     var msg PrivateMessage
 	err := c2.ReadJSON(&msg)
@@ -162,7 +162,7 @@ func TestRemoveSocketFromChannels(t *testing.T) {
 		Sender:  12,
 	})
 
-	c2.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
+	c2.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
 
 	var msg Message
 	err := c2.ReadJSON(&msg)
