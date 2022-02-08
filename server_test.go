@@ -156,10 +156,12 @@ func TestRemoveSocketFromChannels(t *testing.T) {
 	c2.Close()
 	defer c1.Close()
 
-	c1.WriteJSON(Message{
-		Message: "hello",
-		Channel: 1,
-		Sender:  12,
+	time.Sleep(100 * time.Millisecond)
+
+	if socket := server.Channels[1].Sockets[13]; socket != nil {
+		t.Error("Expected error, got socket", socket)
+	}
+}
 	})
 
 	c2.SetReadDeadline(time.Now().Add(100 * time.Millisecond))

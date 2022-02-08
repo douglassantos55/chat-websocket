@@ -70,6 +70,11 @@ func (s *Server) HandleConnection(w http.ResponseWriter, r *http.Request) {
 
 			if err != nil {
 				delete(s.Sockets, id)
+
+				for _, channel := range s.Channels {
+					delete(channel.Sockets, id)
+				}
+
 				break
 			}
 
