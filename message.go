@@ -72,3 +72,29 @@ func (m *PrivateMessage) UnmarshalJSON(b []byte) error {
 
 	return nil
 }
+
+type JoinChannel struct {
+	Channel uint `json:"channel"`
+}
+
+func (m *JoinChannel) UnmarshalJSON(b []byte) error {
+	var data map[string]interface{}
+
+	if err := json.Unmarshal(b, &data); err != nil {
+		return err
+	}
+
+	channel := data["channel"]
+
+	if data["message"] != nil {
+		return errors.New("Not join channel")
+	}
+
+	if channel == nil || channel.(float64) == 0 {
+		return errors.New("No channel")
+	}
+
+	m.Channel = uint(channel.(float64))
+
+	return nil
+}
