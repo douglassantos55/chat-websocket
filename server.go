@@ -55,6 +55,12 @@ func (s *Server) AddChannel(name string) uint {
 	return id
 }
 
+func (s *Server) AddToChannel(socket *Socket, channelId uint) {
+	s.mut.Lock()
+	defer s.mut.Unlock()
+	s.Channels[channelId].Sockets[socket.Id] = socket
+}
+
 func (s *Server) HandleConnection(w http.ResponseWriter, r *http.Request) {
 	var upgrader = websocket.Upgrader{
 		CheckOrigin: func(r *http.Request) bool {
@@ -72,9 +78,11 @@ func (s *Server) HandleConnection(w http.ResponseWriter, r *http.Request) {
 	go func() {
 		defer c.Close()
 
-		socket := NewSocket(c)
 		id := s.currentId
+		socket := NewSocket(c, id)
+
 		s.mut.Lock()
+
 		s.Sockets[id] = socket
 		s.currentId += 1
 
@@ -101,93 +109,22 @@ func (s *Server) HandleConnection(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 
-			go s.parseMessage(msg, id, socket)
+			go s.parseMessage(msg, socket)
 		}
 	}()
 }
 
-func (s *Server) parseMessage(msg []byte, id uint, socket *Socket) {
-	message := s.parseBroadcast(msg)
-	private := s.parsePrivate(msg)
-	channel := s.parseChannel(msg)
+func (s *Server) parseMessage(msg []byte, socket *Socket) {
+	var message Message
+	err := json.Unmarshal(msg, &message)
 
-	select {
-	case m := <-message:
-		go s.broadcast(m)
-	case m := <-private:
-		go s.private(m)
-	case m := <-channel:
-		s.mut.Lock()
-		s.Channels[m.Channel].Sockets[id] = socket
-		s.mut.Unlock()
-	}
+	message.Socket = socket
 
-}
-
-func (s *Server) parseBroadcast(msg []byte) chan Message {
-	ch := make(chan Message)
-
-	go func() {
-		var message Message
-		err := json.Unmarshal(msg, &message)
-
-		if err == nil {
-			ch <- message
-		}
-	}()
-
-	return ch
-}
-
-func (s *Server) parsePrivate(msg []byte) chan PrivateMessage {
-	ch := make(chan PrivateMessage)
-
-	go func() {
-		var message PrivateMessage
-		err := json.Unmarshal(msg, &message)
-
-		if err == nil {
-			ch <- message
-		}
-	}()
-
-	return ch
-}
-
-func (s *Server) parseChannel(msg []byte) chan JoinChannel {
-	ch := make(chan JoinChannel)
-	go func() {
-		var message JoinChannel
-		err := json.Unmarshal(msg, &message)
-
-		if err == nil {
-			ch <- message
-		}
-	}()
-	return ch
-}
-
-func (s *Server) broadcast(message Message) {
-	channel := s.Channels[message.Channel]
-
-	if channel == nil {
-		log.Printf("Channel %d not found", message.Channel)
+	if err != nil {
 		return
 	}
 
-	sender := s.Sockets[message.Sender]
-
-	for _, socket := range channel.Sockets {
-		if socket.Conn != sender.Conn {
-			socket.Conn.WriteJSON(message)
-		}
-	}
-}
-
-func (s *Server) private(message PrivateMessage) {
-	receiver, exists := s.Sockets[message.Receiver]
-
-	if exists {
-		receiver.Conn.WriteJSON(message)
+	if runner := NewMessageRunner(message); runner != nil {
+		runner.Execute(s)
 	}
 }

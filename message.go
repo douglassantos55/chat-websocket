@@ -1,100 +1,35 @@
 package main
 
-import (
-	"encoding/json"
-	"errors"
-)
-
 type Message struct {
-	Message string `json:"message"`
-	Sender  uint   `json:"sender"`
-	Channel uint   `json:"channel"`
+	Type     string
+	Message  string
+	Channel  uint
+	Receiver uint
+	Sender   uint
+	Socket   *Socket
 }
 
-func (m *Message) UnmarshalJSON(b []byte) error {
-	var data map[string]interface{}
-
-	if err := json.Unmarshal(b, &data); err != nil {
-		return err
+func Broadcast(msg string, channel uint, sender uint) Message {
+	return Message{
+		Type:    "broadcast",
+		Message: msg,
+		Channel: channel,
+		Sender:  sender,
 	}
-
-	message := data["message"]
-	sender := data["sender"]
-	channel := data["channel"]
-
-	if message == nil || message.(string) == "" {
-		return errors.New("No message")
-	}
-	if sender == nil || sender.(float64) == 0 {
-		return errors.New("No sender")
-	}
-	if channel == nil || channel.(float64) == 0 {
-		return errors.New("No channel")
-	}
-
-	m.Message = message.(string)
-	m.Sender = uint(sender.(float64))
-	m.Channel = uint(channel.(float64))
-
-	return nil
 }
 
-type PrivateMessage struct {
-	Message  string `json:"message"`
-	Sender   uint   `json:"sender"`
-	Receiver uint   `json:"receiver"`
+func SendPrivate(msg string, receiver uint, sender uint) Message {
+	return Message{
+		Type:     "priv_msg",
+		Message:  msg,
+		Sender:   sender,
+		Receiver: receiver,
+	}
 }
 
-func (m *PrivateMessage) UnmarshalJSON(b []byte) error {
-	var data map[string]interface{}
-
-	if err := json.Unmarshal(b, &data); err != nil {
-		return err
+func JoinChannel(channel uint) Message {
+	return Message{
+		Type:    "join_channel",
+		Channel: channel,
 	}
-
-	message := data["message"]
-	sender := data["sender"]
-	receiver := data["receiver"]
-
-	if message == nil || message.(string) == "" {
-		return errors.New("No message")
-	}
-	if sender == nil || sender.(float64) == 0 {
-		return errors.New("No sender")
-	}
-	if receiver == nil || receiver.(float64) == 0 {
-		return errors.New("No receiver")
-	}
-
-	m.Message = message.(string)
-	m.Sender = uint(sender.(float64))
-	m.Receiver = uint(receiver.(float64))
-
-	return nil
-}
-
-type JoinChannel struct {
-	Channel uint `json:"channel"`
-}
-
-func (m *JoinChannel) UnmarshalJSON(b []byte) error {
-	var data map[string]interface{}
-
-	if err := json.Unmarshal(b, &data); err != nil {
-		return err
-	}
-
-	channel := data["channel"]
-
-	if data["message"] != nil {
-		return errors.New("Not join channel")
-	}
-
-	if channel == nil || channel.(float64) == 0 {
-		return errors.New("No channel")
-	}
-
-	m.Channel = uint(channel.(float64))
-
-	return nil
 }

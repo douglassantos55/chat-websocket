@@ -59,11 +59,7 @@ func TestBroadcastMessages(t *testing.T) {
 	defer c1.Close()
 	defer c2.Close()
 
-	c1.WriteJSON(Message{
-		Message: "hello",
-		Channel: 1,
-		Sender:  5,
-	})
+	c1.WriteJSON(Broadcast("hello", 1, 5))
 
 	c1.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
 
@@ -95,15 +91,11 @@ func TestPrivateMessage(t *testing.T) {
 	defer c2.Close()
 	defer c3.Close()
 
-	c1.WriteJSON(PrivateMessage{
-		Message:  "hello, number 8",
-		Sender:   7,
-		Receiver: 8,
-	})
+	c1.WriteJSON(SendPrivate("hello, number 8", 8, 7))
 
 	c2.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
 
-	var data PrivateMessage
+	var data Message
 	err := c2.ReadJSON(&data)
 
 	if err != nil {
@@ -112,10 +104,6 @@ func TestPrivateMessage(t *testing.T) {
 
 	if data.Message != "hello, number 8" {
 		t.Errorf("Expected hello, number 8, got %s", data.Message)
-	}
-
-	if data.Sender != 7 {
-		t.Errorf("Expected sender 7, got %d", data.Sender)
 	}
 
 	c3.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
@@ -133,15 +121,11 @@ func TestPrivateMessageToInvalid(t *testing.T) {
 	defer c1.Close()
 	defer c2.Close()
 
-	c1.WriteJSON(PrivateMessage{
-		Message:  "hello, number 8",
-		Sender:   10,
-		Receiver: 999,
-	})
+	c1.WriteJSON(SendPrivate("hello, number 8", 999, 10))
 
 	c2.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
 
-	var msg PrivateMessage
+	var msg Message
 	err := c2.ReadJSON(&msg)
 
 	if err == nil {
@@ -172,9 +156,7 @@ func TestJoinChannel(t *testing.T) {
 
 	channelId := server.AddChannel("Games")
 
-	c1.WriteJSON(JoinChannel{
-		Channel: channelId,
-	})
+	c1.WriteJSON(JoinChannel(channelId))
 
 	time.Sleep(100 * time.Millisecond)
 
@@ -194,21 +176,12 @@ func TestOnlyMembersOfChannelReceiveBroadcast(t *testing.T) {
 
 	channelId := server.AddChannel("Music")
 
-	c1.WriteJSON(JoinChannel{
-		Channel: channelId,
-	})
-
-	c2.WriteJSON(JoinChannel{
-		Channel: channelId,
-	})
+	c1.WriteJSON(JoinChannel(channelId))
+	c2.WriteJSON(JoinChannel(channelId))
 
 	time.Sleep(100 * time.Millisecond)
 
-	c1.WriteJSON(Message{
-		Message: "hi people from channel",
-		Channel: channelId,
-		Sender:  16,
-	})
+	c1.WriteJSON(Broadcast("hi people from channel", channelId, 16))
 
 	c2.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
 	c3.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
@@ -247,19 +220,12 @@ func TestReceivesFromAllJoinedChannels(t *testing.T) {
 
 	channelId := server.AddChannel("Jobs")
 
-	c1.WriteJSON(JoinChannel{
-		Channel: channelId,
-	})
+	c1.WriteJSON(JoinChannel(channelId))
+	c2.WriteJSON(JoinChannel(channelId))
 
-	c2.WriteJSON(JoinChannel{
-		Channel: channelId,
-	})
+    time.Sleep(100 * time.Millisecond)
 
-	c1.WriteJSON(Message{
-		Message: "hi people from channel",
-		Channel: channelId,
-		Sender:  19,
-	})
+	c1.WriteJSON(Broadcast("hi people from channel", channelId, 19))
 
 	c2.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
 
@@ -287,11 +253,7 @@ func TestReceivesFromAllJoinedChannels(t *testing.T) {
 		t.Errorf("Expected timeout, got message: \"%s\"", fail.Message)
 	}
 
-	c1.WriteJSON(Message{
-		Message: "hi people from broadcast",
-		Channel: 1,
-		Sender:  19,
-	})
+	c1.WriteJSON(Broadcast("hi people from broadcast", 1, 19))
 
 	c2.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
 	broadcastErr := c2.ReadJSON(&msg)
