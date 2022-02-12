@@ -1,4 +1,4 @@
-package main
+package server
 
 import (
 	"log"
@@ -29,6 +29,10 @@ func (c *Channel) Broadcast(msg Message) {
 	for _, client := range c.clients {
 		client.SendMessage(msg)
 	}
+}
+
+func (c *Channel) Clients() int {
+	return len(c.clients)
 }
 
 type Server struct {
@@ -90,14 +94,13 @@ func (s *Server) HandleConnection(w http.ResponseWriter, r *http.Request) {
 	}
 
 	client := NewClient(c)
-	s.AddToChannel(client, DEFAULT_CHANNEL)
+	s.Clients[client.Id] = client
 
 	go func() {
 		defer client.Close()
 
 		for {
 			msg, err := client.GetMessage()
-			log.Println(msg)
 
 			if err != nil {
 				s.mut.Lock()

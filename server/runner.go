@@ -1,4 +1,4 @@
-package main
+package server
 
 import (
 	"log"
@@ -15,7 +15,7 @@ type PrivMessenger struct {
 }
 
 func (m *PrivMessenger) Execute(server *Server) {
-	receiverId := m.msg.Payload["receiver"].(uuid.UUID)
+	receiverId, _ := uuid.Parse(m.msg.Payload["receiver"].(string))
 	receiver, exists := server.Clients[receiverId]
 
 	if exists {
@@ -40,7 +40,6 @@ func (b *Broadcaster) Execute(server *Server) {
 		return
 	}
 
-	log.Println("Broadcasting on channel", channelId)
 	channel.Broadcast(b.msg)
 }
 
@@ -49,7 +48,7 @@ type Channeler struct {
 }
 
 func (c *Channeler) Execute(server *Server) {
-	channelId := c.msg.Payload["channel"].(uint)
+	channelId := uint(c.msg.Payload["channel"].(float64))
 	server.AddToChannel(c.msg.Sender, channelId)
 }
 
@@ -59,7 +58,7 @@ type Authenticator struct {
 
 func (a *Authenticator) Execute(server *Server) {
 	a.msg.Sender.Name = a.msg.Payload["name"].(string)
-	server.Clients[a.msg.Sender.Id] = a.msg.Sender
+	server.Channels[DEFAULT_CHANNEL].AddClient(a.msg.Sender)
 
 	a.msg.Sender.SendMessage(Message{
 		Type: "auth",
