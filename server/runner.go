@@ -49,7 +49,13 @@ type Channeler struct {
 
 func (c *Channeler) Execute(server *Server) {
 	channelId := uint(c.msg.Payload["channel"].(float64))
-	server.AddToChannel(c.msg.Sender, channelId)
+
+	switch c.msg.Type {
+	case "join_channel":
+		server.AddToChannel(c.msg.Sender, channelId)
+	case "leave_channel":
+		server.RemoveFromChannel(c.msg.Sender, channelId)
+	}
 }
 
 type Authenticator struct {
@@ -77,7 +83,7 @@ func NewMessageRunner(msg Message) Runner {
 		return &Broadcaster{msg}
 	case "priv_msg":
 		return &PrivMessenger{msg}
-	case "join_channel":
+	case "join_channel", "leave_channel":
 		return &Channeler{msg}
 	}
 

@@ -79,6 +79,12 @@ func (s *Server) AddToChannel(client *Client, channelId uint) {
 	s.Channels[channelId].AddClient(client)
 }
 
+func (s *Server) RemoveFromChannel(client *Client, channelId uint) {
+	s.mut.Lock()
+	defer s.mut.Unlock()
+	s.Channels[channelId].RemoveClient(client)
+}
+
 func (s *Server) HandleConnection(w http.ResponseWriter, r *http.Request) {
 	var upgrader = websocket.Upgrader{
 		CheckOrigin: func(r *http.Request) bool {
