@@ -1,6 +1,10 @@
 package main
 
-import "log"
+import (
+	"log"
+
+	"github.com/google/uuid"
+)
 
 type Runner interface {
 	Execute(server *Server)
@@ -11,10 +15,15 @@ type PrivMessenger struct {
 }
 
 func (m *PrivMessenger) Execute(server *Server) {
-	receiver, exists := server.Sockets[m.msg.Receiver]
+	receiverId := m.msg.Payload["receiver"].(uuid.UUID)
+	receiver, exists := server.Clients[receiverId]
 
 	if exists {
-		receiver.Conn.WriteJSON(m.msg)
+		err := receiver.SendMessage(m.msg)
+
+		if err != nil {
+			log.Println("Could not send message: ", m.msg)
+		}
 	}
 }
 
@@ -23,20 +32,16 @@ type Broadcaster struct {
 }
 
 func (b *Broadcaster) Execute(server *Server) {
-	channel := server.Channels[b.msg.Channel]
+	channelId := uint(b.msg.Payload["channel"].(float64))
+	channel := server.Channels[channelId]
 
 	if channel == nil {
-		log.Printf("Channel %d not found", b.msg.Channel)
+		log.Printf("Channel %d not found", channelId)
 		return
 	}
 
-	sender := server.Sockets[b.msg.Sender]
-
-	for _, socket := range channel.Sockets {
-		if socket.Conn != sender.Conn {
-			socket.Conn.WriteJSON(b.msg)
-		}
-	}
+	log.Println("Broadcasting on channel", channelId)
+	channel.Broadcast(b.msg)
 }
 
 type Channeler struct {
@@ -44,11 +49,31 @@ type Channeler struct {
 }
 
 func (c *Channeler) Execute(server *Server) {
-	server.AddToChannel(c.msg.Socket, c.msg.Channel)
+	channelId := c.msg.Payload["channel"].(uint)
+	server.AddToChannel(c.msg.Sender, channelId)
+}
+
+type Authenticator struct {
+	msg Message
+}
+
+func (a *Authenticator) Execute(server *Server) {
+	a.msg.Sender.Name = a.msg.Payload["name"].(string)
+	server.Clients[a.msg.Sender.Id] = a.msg.Sender
+
+	a.msg.Sender.SendMessage(Message{
+		Type: "auth",
+		Payload: map[string]interface{}{
+			"user":     a.msg.Sender,
+			"channels": server.Channels,
+		},
+	})
 }
 
 func NewMessageRunner(msg Message) Runner {
 	switch msg.Type {
+	case "auth":
+		return &Authenticator{msg}
 	case "broadcast":
 		return &Broadcaster{msg}
 	case "priv_msg":

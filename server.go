@@ -1,39 +1,53 @@
 package main
 
 import (
-	"encoding/json"
 	"log"
 	"net/http"
 	"sync"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 )
 
+const DEFAULT_CHANNEL = 1
+
 type Channel struct {
-	Id      uint
-	Name    string
-	Sockets map[uint]*Socket
+	Id      uint   `json:"id"`
+	Name    string `json:"name"`
+	clients map[uuid.UUID]*Client
+}
+
+func (c *Channel) AddClient(client *Client) {
+	c.clients[client.Id] = client
+}
+
+func (c *Channel) RemoveClient(client *Client) {
+	delete(c.clients, client.Id)
+}
+
+func (c *Channel) Broadcast(msg Message) {
+	for _, client := range c.clients {
+		client.SendMessage(msg)
+	}
 }
 
 type Server struct {
-	mut       *sync.Mutex
-	currentId uint
-	Channels  map[uint]*Channel
-	Sockets   map[uint]*Socket
+	mut      *sync.Mutex
+	Channels map[uint]*Channel
+	Clients  map[uuid.UUID]*Client
 }
 
 func NewServer() *Server {
 	defaultChannel := &Channel{
-		Id:      1,
+		Id:      DEFAULT_CHANNEL,
 		Name:    "Broadcast",
-		Sockets: make(map[uint]*Socket),
+		clients: make(map[uuid.UUID]*Client),
 	}
 
 	return &Server{
-		currentId: 1,
-		mut:       new(sync.Mutex),
-		Sockets:   make(map[uint]*Socket),
-		Channels:  map[uint]*Channel{1: defaultChannel},
+		mut:      new(sync.Mutex),
+		Clients:  make(map[uuid.UUID]*Client),
+		Channels: map[uint]*Channel{DEFAULT_CHANNEL: defaultChannel},
 	}
 }
 
@@ -49,16 +63,16 @@ func (s *Server) AddChannel(name string) uint {
 	s.Channels[id] = &Channel{
 		Id:      id,
 		Name:    name,
-		Sockets: make(map[uint]*Socket),
+		clients: make(map[uuid.UUID]*Client),
 	}
 
 	return id
 }
 
-func (s *Server) AddToChannel(socket *Socket, channelId uint) {
+func (s *Server) AddToChannel(client *Client, channelId uint) {
 	s.mut.Lock()
 	defer s.mut.Unlock()
-	s.Channels[channelId].Sockets[socket.Id] = socket
+	s.Channels[channelId].AddClient(client)
 }
 
 func (s *Server) HandleConnection(w http.ResponseWriter, r *http.Request) {
@@ -75,56 +89,31 @@ func (s *Server) HandleConnection(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	client := NewClient(c)
+	s.AddToChannel(client, DEFAULT_CHANNEL)
+
 	go func() {
-		defer c.Close()
-
-		id := s.currentId
-		socket := NewSocket(c, id)
-
-		s.mut.Lock()
-
-		s.Sockets[id] = socket
-		s.currentId += 1
-
-		// add client to the default channel
-		s.Channels[1].Sockets[id] = socket
-		s.mut.Unlock()
+		defer client.Close()
 
 		for {
-			_, msg, err := c.ReadMessage()
+			msg, err := client.GetMessage()
+			log.Println(msg)
 
 			if err != nil {
 				s.mut.Lock()
-				delete(s.Sockets, id)
+				delete(s.Clients, client.Id)
 
 				for _, channel := range s.Channels {
-					delete(channel.Sockets, id)
+					channel.RemoveClient(client)
 				}
-				s.mut.Unlock()
 
+				s.mut.Unlock()
 				break
 			}
 
-			if msg == nil {
-				continue
+			if runner := NewMessageRunner(msg); runner != nil {
+				go runner.Execute(s)
 			}
-
-			go s.parseMessage(msg, socket)
 		}
 	}()
-}
-
-func (s *Server) parseMessage(msg []byte, socket *Socket) {
-	var message Message
-	err := json.Unmarshal(msg, &message)
-
-	message.Socket = socket
-
-	if err != nil {
-		return
-	}
-
-	if runner := NewMessageRunner(message); runner != nil {
-		runner.Execute(s)
-	}
 }
