@@ -15,13 +15,27 @@ type Channel struct {
 	Id      uint   `json:"id"`
 	Name    string `json:"name"`
 	clients map[uuid.UUID]*Client
+	mut     *sync.Mutex
+}
+
+func NewChannel(id uint, name string) *Channel {
+	return &Channel{
+		Id:      id,
+		Name:    name,
+		clients: make(map[uuid.UUID]*Client),
+		mut:     new(sync.Mutex),
+	}
 }
 
 func (c *Channel) AddClient(client *Client) {
+	c.mut.Lock()
+	defer c.mut.Unlock()
 	c.clients[client.Id] = client
 }
 
 func (c *Channel) RemoveClient(client *Client) {
+	c.mut.Lock()
+	defer c.mut.Unlock()
 	delete(c.clients, client.Id)
 }
 
@@ -42,11 +56,7 @@ type Server struct {
 }
 
 func NewServer() *Server {
-	defaultChannel := &Channel{
-		Id:      DEFAULT_CHANNEL,
-		Name:    "Broadcast",
-		clients: make(map[uuid.UUID]*Client),
-	}
+	defaultChannel := NewChannel(DEFAULT_CHANNEL, "Broadcast")
 
 	return &Server{
 		mut:      new(sync.Mutex),
@@ -62,26 +72,20 @@ func (s *Server) Listen(addr string) {
 }
 
 func (s *Server) AddChannel(name string) uint {
+	s.mut.Lock()
+	defer s.mut.Unlock()
+
 	id := uint(len(s.Channels) + 1)
 
-	s.Channels[id] = &Channel{
-		Id:      id,
-		Name:    name,
-		clients: make(map[uuid.UUID]*Client),
-	}
-
+	s.Channels[id] = NewChannel(id, name)
 	return id
 }
 
 func (s *Server) AddToChannel(client *Client, channelId uint) {
-	s.mut.Lock()
-	defer s.mut.Unlock()
 	s.Channels[channelId].AddClient(client)
 }
 
 func (s *Server) RemoveFromChannel(client *Client, channelId uint) {
-	s.mut.Lock()
-	defer s.mut.Unlock()
 	s.Channels[channelId].RemoveClient(client)
 }
 
@@ -100,7 +104,9 @@ func (s *Server) HandleConnection(w http.ResponseWriter, r *http.Request) {
 	}
 
 	client := NewClient(c)
+	s.mut.Lock()
 	s.Clients[client.Id] = client
+	s.mut.Unlock()
 
 	go func() {
 		defer client.Close()
@@ -111,12 +117,12 @@ func (s *Server) HandleConnection(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				s.mut.Lock()
 				delete(s.Clients, client.Id)
+				s.mut.Unlock()
 
 				for _, channel := range s.Channels {
 					channel.RemoveClient(client)
 				}
 
-				s.mut.Unlock()
 				break
 			}
 
