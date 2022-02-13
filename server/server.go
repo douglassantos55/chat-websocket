@@ -71,6 +71,18 @@ func (s *Server) Listen(addr string) {
 	log.Fatal(http.ListenAndServe(addr, nil))
 }
 
+func (s *Server) AddClient(client *Client) {
+    s.mut.Lock()
+    defer s.mut.Unlock()
+	s.Clients[client.Id] = client
+}
+
+func (s *Server) RemoveClient(client *Client) {
+    s.mut.Lock()
+    defer s.mut.Unlock()
+    delete(s.Clients, client.Id)
+}
+
 func (s *Server) AddChannel(name string) uint {
 	s.mut.Lock()
 	defer s.mut.Unlock()
@@ -104,9 +116,7 @@ func (s *Server) HandleConnection(w http.ResponseWriter, r *http.Request) {
 	}
 
 	client := NewClient(c)
-	s.mut.Lock()
-	s.Clients[client.Id] = client
-	s.mut.Unlock()
+    s.AddClient(client)
 
 	go func() {
 		defer client.Close()
@@ -115,9 +125,7 @@ func (s *Server) HandleConnection(w http.ResponseWriter, r *http.Request) {
 			msg, err := client.GetMessage()
 
 			if err != nil {
-				s.mut.Lock()
-				delete(s.Clients, client.Id)
-				s.mut.Unlock()
+                s.RemoveClient(client)
 
 				for _, channel := range s.Channels {
 					channel.RemoveClient(client)
