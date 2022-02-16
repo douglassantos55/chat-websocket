@@ -19,6 +19,10 @@ func (m *PrivMessenger) Execute(server *Server) {
 	receiver, exists := server.Clients[receiverId]
 
 	if exists {
+        m.msg.Payload["channel"] = receiver
+        m.msg.Sender.SendMessage(m.msg)
+
+        m.msg.Payload["channel"] = m.msg.Sender
 		err := receiver.SendMessage(m.msg)
 
 		if err != nil {
@@ -48,6 +52,10 @@ type Channeler struct {
 }
 
 func (c *Channeler) Execute(server *Server) {
+    if c.msg.Payload["channel"] == nil {
+        return
+    }
+
 	channelId := uint(c.msg.Payload["channel"].(float64))
 
 	switch c.msg.Type {
