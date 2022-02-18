@@ -72,7 +72,10 @@ type Authenticator struct {
 
 func (a *Authenticator) Execute(server *Server) {
 	a.msg.Sender.Name = a.msg.Payload["name"].(string)
-	server.Channels[DEFAULT_CHANNEL].AddClient(a.msg.Sender)
+
+    for _, channel := range server.Channels {
+        channel.AddClient(a.msg.Sender)
+    }
 
 	a.msg.Sender.SendMessage(Message{
 		Type: "auth",

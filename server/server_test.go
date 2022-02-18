@@ -49,6 +49,15 @@ func JoinChannel(channelId uint) Message {
 	}
 }
 
+func LeaveChannel(channelId uint) Message {
+	return Message{
+		Type: "leave_channel",
+		Payload: map[string]interface{}{
+			"channel": channelId,
+		},
+	}
+}
+
 func Authenticate(name string) Message {
 	return Message{
 		Type: "auth",
@@ -91,6 +100,8 @@ func TestClosesConnections(t *testing.T) {
 }
 
 func TestAuthentication(t *testing.T) {
+    server.AddChannel("Games")
+
 	c1 := ConnectToServer("0.0.0.0:8080")
 	c2 := ConnectToServer("0.0.0.0:8080")
 
@@ -102,8 +113,10 @@ func TestAuthentication(t *testing.T) {
 	// wait a bit, don't know how to do this right
 	time.Sleep(100 * time.Millisecond)
 
-	if server.Channels[DEFAULT_CHANNEL].Clients() != 1 {
-		t.Errorf("Expected 1 connection, got %d", server.Channels[DEFAULT_CHANNEL].Clients())
+	for _, channel := range server.Channels {
+		if channel.Clients() != 1 {
+			t.Errorf("Expected 1 connection on all channels, got %d in channel %s", channel.Clients(), channel.Name)
+		}
 	}
 }
 
@@ -161,11 +174,13 @@ func TestRemoveSocketFromChannels(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	if len(server.Clients) != 1 {
-		t.Errorf("Expected 1 client, got %d", server.Channels[1].Clients())
+		t.Errorf("Expected 1 client, got %d", len(server.Clients))
 	}
 
-	if server.Channels[DEFAULT_CHANNEL].Clients() != 1 {
-		t.Errorf("Expected 1 client, got %d", server.Channels[1].Clients())
+	for _, channel := range server.Channels {
+		if channel.Clients() != 1 {
+            t.Errorf("Expected 1 client on all channels, got %d on channel %s", channel.Clients(), channel.Name)
+		}
 	}
 }
 
@@ -184,6 +199,43 @@ func TestJoinChannel(t *testing.T) {
 	if server.Channels[channelId].Clients() != 1 {
 		t.Errorf("Expected 1 connection, got %d", server.Channels[channelId].Clients())
 	}
+}
+
+func TestLeaveChannel(t *testing.T) {
+	c1 := ConnectToServer("0.0.0.0:8080")
+	c2 := ConnectToServer("0.0.0.0:8080")
+
+	defer c1.Close()
+	defer c2.Close()
+
+    c1.WriteJSON(Authenticate("john doe"))
+    c2.WriteJSON(Authenticate("jane doe"))
+
+    var msg Message
+
+	// Skip auth returns
+	c1.ReadJSON(&msg)
+	c2.ReadJSON(&msg)
+
+    time.Sleep(100 * time.Millisecond)
+
+    c2.WriteJSON(LeaveChannel(DEFAULT_CHANNEL))
+
+    time.Sleep(100 * time.Millisecond)
+
+    c1.WriteJSON(Broadcast("hi from leave channel", DEFAULT_CHANNEL))
+
+    if server.Channels[DEFAULT_CHANNEL].Clients() != 1 {
+        t.Errorf("Expected 1 client, got %d", server.Channels[DEFAULT_CHANNEL].Clients())
+    }
+
+	c2.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
+
+    err := c2.ReadJSON(&msg)
+
+    if err == nil {
+        t.Errorf("Expected timeout, got message %s", msg.Payload["message"])
+    }
 }
 
 func TestOnlyMembersOfChannelReceiveBroadcast(t *testing.T) {
