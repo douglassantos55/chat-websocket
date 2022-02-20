@@ -37,6 +37,8 @@ func (c *Client) GetMessage() (Message, error) {
 }
 
 func (c *Client) SendMessage(message Message) error {
+	message.Id = uuid.New()
 	message.Timestamp = time.Now()
+
 	return c.socket.WriteJSON(message)
 }
