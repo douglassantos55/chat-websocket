@@ -63,14 +63,11 @@ func (c *Channeler) Execute(server *Server) {
 		server.AddToChannel(c.msg.Sender, channelId)
 	case "leave_channel":
 		server.RemoveFromChannel(c.msg.Sender, channelId)
-
-        c.msg.Sender.SendMessage(Message{
-            Type: "left_channel",
-            Payload: map[string]interface{}{
-                "channel": channelId,
-            },
-        })
 	}
+
+    c.msg.Sender.SendMessage(Message{
+        Type: "update_channels",
+    })
 }
 
 type Authenticator struct {
